@@ -15,8 +15,6 @@
 # Authors:
 #   Traxton Chen <Traxton.GPG@proton.me>
 
-__version__ = "0.1.0"
+from .lead_lag_compensator import LeadLag
 
-from . import feedforward
-
-__all__ = ["__version__", "feedforward"]
+__all__ = ["LeadLag"]
