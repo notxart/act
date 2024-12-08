@@ -16,7 +16,7 @@
 #   Traxton Chen <Traxton.GPG@proton.me>
 
 from dataclasses import dataclass
-from math import exp
+from math import exp, isclose
 
 
 @dataclass
@@ -28,8 +28,8 @@ class Range:
 @dataclass
 class LeadLagParam:
     gain: float
-    lead: float
-    lag: float
+    tau_p: float
+    tau_d: float
 
 
 @dataclass
@@ -45,11 +45,11 @@ class NominalCondition:
 class LeadLag:
     def __init__(
         self,
-        acceptable_d_range: tuple[float, float],
-        output_u_limit: tuple[float, float],
         current_d: float,
         current_u: float,
-    ):
+        acceptable_d_range: tuple[float, float],
+        output_u_limit: tuple[float, float],
+    ) -> None:
         self.__accept_d_range = Range(*acceptable_d_range)
         self.__output_limit = Range(*output_u_limit)
 
@@ -57,12 +57,22 @@ class LeadLag:
         self.__nominal_condition = NominalCondition(0.0, current_d, current_u)
 
     @property
+    def disturbance_range(self) -> tuple[float, float]:
+        return self.__accept_d_range.min, self.__accept_d_range.max
+
+    @disturbance_range.setter
+    def disturbance_range(self, range_: tuple[float, float]) -> None:
+        self.__accept_d_range.min, self.__accept_d_range.max = min(range_), max(range_)
+
+    @property
     def param(self) -> tuple[float, float, float]:
-        return self.__param.gain, self.__param.lead, self.__param.lag
+        """Get the controller parameters `gain`, `system time constant` and `disturbance time constant`."""
+        return self.__param.gain, self.__param.tau_p, self.__param.tau_d
 
     @param.setter
     def param(self, parameter: tuple[float, float, float]) -> None:
-        self.__param.gain, self.__param.lead, self.__param.lag = parameter
+        """Set the controller parameters `gain`, `system time constant` and `disturbance time constant`."""
+        self.__param.gain, self.__param.tau_p, self.__param.tau_d = parameter
 
     def __clip(self, value: float, upper_limit: float, lower_limit: float) -> float:
         upper_limit, lower_limit = (
@@ -76,6 +86,9 @@ class LeadLag:
         disterbance: float,
         current_time: float,
     ) -> float:
+        if isclose(self.__param.tau_d, 0):
+            raise ValueError("The time constant of the disturbance CANNOT be 0.")
+
         condition = self.__nominal_condition
         if self.__accept_d_range.min < disterbance < self.__accept_d_range.max:
             condition.t = current_time
@@ -83,11 +96,11 @@ class LeadLag:
             condition.u = manipulated_variable
             return condition.u
 
-        gain, lead, lag = self.__param.gain, self.__param.lead, self.__param.lag
+        gain, tau_p, tau_d = self.__param.gain, self.__param.tau_p, self.__param.tau_d
 
         delta_d = disterbance - condition.d
         delta_t = current_time - condition.t
-        lead_lag = (lead - lag) / lag * exp(-delta_t / lag)
+        lead_lag = (tau_p - tau_d) / tau_d * exp(-delta_t / tau_d)
         delta_u = gain * delta_d * (1 + lead_lag)
 
         return self.__clip(condition.u + delta_u, self.__output_limit.max, self.__output_limit.min)

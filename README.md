@@ -12,4 +12,4 @@ Advanced (Process) Control Toolkit, referred to as **ACT**, is an **open source 
 
 ### Feedforward
 
-- [x] Lead–lag compensator
+- [x] Lead/lag compensator
